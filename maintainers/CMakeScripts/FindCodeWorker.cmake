@@ -33,10 +33,10 @@ IF (NOT CODEWORKER_BINARY_PATH)
         IF (CODEWORKER_BINARY_NAME)
             SET(CODEWORKER_BINARY_PATH "${RATHAXES_BINARY_DIR}/maintainers/cnorm/${CODEWORKER_BINARY_NAME}")
 
-            MESSAGE(STATUS "Downloading http://rathaxes.googlecode.com/files/${CODEWORKER_BINARY_NAME}")
+            MESSAGE(STATUS "Downloading http://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/rathaxes/${CODEWORKER_BINARY_NAME}")
 
             FILE(DOWNLOAD
-                 "http://rathaxes.googlecode.com/files/${CODEWORKER_BINARY_NAME}"
+                 "http://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/rathaxes/${CODEWORKER_BINARY_NAME}"
                  ${CODEWORKER_BINARY_PATH}
                  STATUS CODEWORKER_DL_STATUS
                  TIMEOUT 20)
