@@ -1,0 +1,91 @@
+with LKM, Device, DMA, Ethernet, Socket
+{
+    template type Socket::AbstractSKBuff()
+    {
+        chunk LKM::includes()
+        {
+            #include <linux/skbuff.h>
+        }
+
+        decl  data_types()
+        {
+            struct sk_buff  data;
+        }
+
+        map
+        {
+            k_sk_buff: ((struct sk_buff *)(${self}));
+        }
+    }
+
+    template type Socket::SKBuff()
+    {
+        decl  data_types()
+        {
+            ${Socket::AbstractSKBuff.ref}   skbuff;
+        }
+
+        chunk   LKM::prototypes()
+        {
+            static void rtx_socket_skbuff_dump_infos(${Socket::SKBuff.ref});
+        }
+
+        chunk   LKM::code()
+        {
+            static void rtx_socket_skbuff_dump_infos(${Socket::SKBuff.ref} self)
+            {
+                WARN_ON(!${local.self.sk_buff});
+
+                ${Ethernet::ProtocolId} ethernet_proto = { .id = be16_to_cpu(${local.self.sk_buff.k_sk_buff}->protocol) };
+                static const char * const ip_summed_values[] = {
+                    "none", "unnecessary", "complete", "partial"
+                };
+                struct skb_shared_info *shinfo = skb_shinfo(${local.self.sk_buff.k_sk_buff});
+
+                /*
+                 * We should use a Rathaxes log abstraction instead of pr_info here,
+                 * but Rathaxes doesn't support functions with a variable number of
+                 * arguments yet.
+                 */
+                pr_info(
+                    "\t protocol = %#-5x (%s) ip_summed = %d (%s)\n"
+                    "\t      len = %-5u data_len = %-5u head_len = %-5u\n"
+                    "\t nr_frags = %u\n"
+                    "\t gso_size = %-5u gso_segs = %-5u gso_type = %-5u",
+                    /* XXX: can't use ${local.ethernet_proto.id} here (issue #52): */
+                    ethernet_proto.id, ${local.ethernet_proto.str},
+                    ${local.self.sk_buff.k_sk_buff}->ip_summed, ip_summed_values[${local.self.sk_buff.k_sk_buff}->ip_summed],
+                    ${local.self.sk_buff.k_sk_buff}->len, ${local.self.sk_buff.k_sk_buff}->data_len, skb_headlen(${local.self.sk_buff.k_sk_buff}),
+                    shinfo->nr_frags, shinfo->gso_size, shinfo->gso_segs, shinfo->gso_type
+                );
+            }
+        }
+
+        method init(Socket::AbstractSKBuff k_skb)
+        {
+            ${self} = (${Socket::SKBuff.ref})(${k_skb});
+        }
+
+        method dump_infos()
+        {
+            rtx_socket_skbuff_dump_infos(${self});
+        }
+
+        method free()
+        {
+            dev_kfree_skb(${self.sk_buff.k_sk_buff});
+        }
+
+        map
+        {
+            // Some work may have to be done here in order to access to some
+            // field of the sk_buff. We should determine if all the sk_buff
+            // management can be abstracted from the user. But this is at least
+            // useful for internal use:
+            sk_buff: (${self})->skbuff;
+
+            data: ((struct sk_buff *)((${self})->skbuff))->data;
+            len: ((struct sk_buff *)((${self})->skbuff))->len;
+        }
+    }
+}

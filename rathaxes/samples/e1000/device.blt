@@ -1,0 +1,24 @@
+with Device, LKM
+{
+    template type   Device::AbstractDevice()
+    {
+        chunk   LKM::includes()
+        {
+            #include <linux/device.h>
+        }
+
+        decl   data_types()
+        {
+            struct device   data;
+        }
+
+        method   init()
+        {
+        }
+
+        map
+        {
+            k_device: ((struct device *)${self});
+        }
+    }
+}

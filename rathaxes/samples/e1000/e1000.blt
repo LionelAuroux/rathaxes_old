@@ -1,0 +1,860 @@
+with LKM, e1000, Ethernet, Socket, Device, DMA, PCI, Log, Builtin
+{
+    template type e1000::Register()
+    {
+        decl data_types()
+        {
+            E1000_CTRL          = 0x00000, /* Device Control - RW */
+            E1000_CTRL_DUP      = 0x00004, /* Device Control Duplicate (Shadow) - RW */
+            E1000_STATUS        = 0x00008, /* Device Status - RO */
+            E1000_EEPROM_FLASH  = 0x00010, /* EEPROM/Flash Control - RW */
+            E1000_EEPROM_READ   = 0x00014, /* EEPROM Read - RW */
+            E1000_CTRL_EXT      = 0x00018, /* Extended Device Control - RW */
+            E1000_FLA           = 0x0001C, /* Flash Access - RW */
+            E1000_MDIC          = 0x00020, /* MDI Control - RW */
+            E1000_IMS           = 0x000D0, /* Interrupt Mask Set */
+            E1000_IMC           = 0x000D8, /* Interrupt Mask Clear */
+            E1000_ICR           = 0x000C0, /* Interrupt Cause Read - R/clr */
+            E1000_FCAL          = 0x00028, /* Flow Control Address Low */
+            E1000_FCAH          = 0x0002c, /* Flow Control Address High */
+            E1000_FCT           = 0x00030, /* Flow Control Type */
+            E1000_RCTL          = 0x00100, /* Receive Control */
+            E1000_FCTTV         = 0x00170, /* Flow Control Transmit Timer Value */
+            E1000_TCTL          = 0x00400, /* Transmit Control */
+            E1000_CRCERRS       = 0x04000, /* CRC Error Count (base address of the statistic register spaces) */
+            E1000_RAL           = 0x05400, /* Receive Address Low */
+            E1000_RAH           = 0x05404, /* Receive Address High */
+            E1000_MTA           = 0x05200, /* Multicast Table Array */
+            E1000_RDBAL         = 0x02800, /* Receive Descriptor Base Address (Low 32 bits) */
+            E1000_RDBAH         = 0x02804, /* Receive Descriptor Base Address (High 32 bits) */
+            E1000_RDLEN         = 0x02808, /* Receive Descriptor Length */
+            E1000_RDH           = 0x02810, /* Receive Descriptor Head */
+            E1000_RDT           = 0x02818, /* Receive Descriptor Tail */
+            E1000_TDBAL         = 0x03800, /* Transmit Descriptor Base Address (Low 32 bits) */
+            E1000_TDBAH         = 0x03804, /* Transmit Descriptor Base Address (High 33 bits) */
+            E1000_TDLEN         = 0x03808, /* Transmit Descriptor Length */
+            E1000_TDH           = 0x03810, /* Transmit Descriptor Head */
+            E1000_TDT           = 0x03818, /* Transmit Descriptor Tail */
+        }
+
+        map
+        {
+        }
+    }
+
+    template type e1000::Command()
+    {
+        decl data_types()
+        {
+            E1000_CMD_FD                    = 0x00000001, /* Full duplex.0=half; 1=full */
+            E1000_CMD_BEM                   = 0x00000002, /* Endian Mode.0=little,1=big */
+            E1000_CMD_PRIOR                 = 0x00000004, /* Priority on PCI. 0=rx,1=fair */
+            E1000_CMD_GIO_MASTER_DISABLE    = 0x00000004, /* Blocks new Master requests */
+            E1000_CMD_LRST                  = 0x00000008, /* Link reset. 0=normal,1=reset */
+            E1000_CMD_TME                   = 0x00000010, /* Test mode. 0=normal,1=test */
+            E1000_CMD_SLE                   = 0x00000020, /* Serial Link on 0=dis,1=en */
+            E1000_CMD_ASDE                  = 0x00000020, /* Auto-speed detect enable */
+            E1000_CMD_SLU                   = 0x00000040, /* Set link up (Force Link) */
+            E1000_CMD_ILOS                  = 0x00000080, /* Invert Loss-Of Signal */
+            E1000_CMD_SPD_SEL               = 0x00000300, /* Speed Select Mask */
+            E1000_CMD_SPD_10                = 0x00000000, /* Force 10Mb */
+            E1000_CMD_SPD_100               = 0x00000100, /* Force 100Mb */
+            E1000_CMD_SPD_1000              = 0x00000200, /* Force 1Gb */
+            E1000_CMD_BEM32                 = 0x00000400, /* Big Endian 32 mode */
+            E1000_CMD_FRCSPD                = 0x00000800, /* Force Speed */
+            E1000_CMD_FRCDPX                = 0x00001000, /* Force Duplex */
+            E1000_CMD_D_UD_EN               = 0x00002000, /* Dock/Undock enable */
+            E1000_CMD_D_UD_POLARITY         = 0x00004000, /* Defined polarity of Dock/Undock indication in SDP[0] */
+            E1000_CMD_FORCE_PHY_RESET       = 0x00008000, /* Reset both PHY ports, through PHYRST_N pin */
+            E1000_CMD_EXT_LINK_EN           = 0x00010000, /* enable link status from external LINK_0 and LINK_1 pins */
+            E1000_CMD_SWDPIN0               = 0x00040000, /* SWDPIN 0 value */
+            E1000_CMD_SWDPIN1               = 0x00080000, /* SWDPIN 1 value */
+            E1000_CMD_SWDPIN2               = 0x00100000, /* SWDPIN 2 value */
+            E1000_CMD_SWDPIN3               = 0x00200000, /* SWDPIN 3 value */
+            E1000_CMD_SWDPIO0               = 0x00400000, /* SWDPIN 0 Input or output */
+            E1000_CMD_SWDPIO1               = 0x00800000, /* SWDPIN 1 input or output */
+            E1000_CMD_SWDPIO2               = 0x01000000, /* SWDPIN 2 input or output */
+            E1000_CMD_SWDPIO3               = 0x02000000, /* SWDPIN 3 input or output */
+            E1000_CMD_RST                   = 0x04000000, /* Global reset */
+            E1000_CMD_RFCE                  = 0x08000000, /* Receive Flow Control enable */
+            E1000_CMD_TFCE                  = 0x10000000, /* Transmit flow control enable */
+            E1000_CMD_RTE                   = 0x20000000, /* Routing tag enable */
+            E1000_CMD_VME                   = 0x40000000, /* IEEE VLAN mode enable */
+            E1000_CMD_PHY_RST               = 0x80000000, /* PHY Reset */
+            E1000_CMD_SW2FW_INT             = 0x02000000, /* Initiate an interrupt to manageability engine */
+            E1000_INTR_TXDW                 = 0x00000001, /* Transmit desc written back */
+            E1000_INTR_TXQE                 = 0x00000002, /* Transmit Queue empty */
+            E1000_INTR_LSC                  = 0x00000004, /* Link Status Change */
+            E1000_INTR_RXSEQ                = 0x00000008, /* rx sequence error */
+            E1000_INTR_RXDMT0               = 0x00000010, /* rx desc min. threshold (0) */
+            E1000_INTR_RXO                  = 0x00000040, /* rx overrun */
+            E1000_INTR_RXT0                 = 0x00000080, /* rx timer intr (ring 0) */
+            E1000_INTR_MDAC                 = 0x00000200, /* MDIO access complete */
+            E1000_RAH_AV                    = (1 << 31),  /* Set the MAC Address as Valid */
+            E1000_RCTL_EN                   = (1 << 1),   /* Receiver Enable */
+            E1000_RCTL_BSEX                 = (1 << 25),  /* Buffer Size Extension */
+            E1000_RCTL_BSIZE_256            = ((1 << 16) | (1 << 17)),
+            E1000_RCTL_BSIZE_512            = (1 << 17),
+            E1000_RCTL_BSIZE_1024           = (1 << 16),
+            E1000_RCTL_BSIZE_2048           = 0,
+            E1000_RCTL_BSIZE_4096           = (E1000_RCTL_BSEX | (1 << 16) | (1 << 17)),
+            E1000_RCTL_BSIZE_8192           = (E1000_RCTL_BSEX | (1 << 17)),
+            E1000_RCTL_BSIZE_16384          = (E1000_RCTL_BSEX | (1 << 16)),
+            E1000_TCTL_EN                   = (1 << 1),   /* Transmitter Enable */
+            E1000_TCTL_PSP                  = (1 << 3),   /* Pad Short Packet */
+        }
+
+        map
+        {
+        }
+    }
+
+    template type e1000::TxDescriptorFlag()
+    {
+        decl data_types()
+        {
+            E1000_TXD_DTYP_D        = 0x00100000, /* Data Descriptor */
+            E1000_TXD_DTYP_C        = 0x00000000, /* Context Descriptor */
+            E1000_TXD_POPTS_IXSM    = 0x01,       /* Insert IP checksum */
+            E1000_TXD_POPTS_TXSM    = 0x02,       /* Insert TCP/UDP checksum */
+            E1000_TXD_CMD_EOP       = 0x01000000, /* End of Packet */
+            E1000_TXD_CMD_IFCS      = 0x02000000, /* Insert FCS (Ethernet CRC) */
+            E1000_TXD_CMD_IC        = 0x04000000, /* Insert Checksum */
+            E1000_TXD_CMD_RS        = 0x08000000, /* Report Status */
+            E1000_TXD_CMD_RPS       = 0x10000000, /* Report Packet Sent */
+            E1000_TXD_CMD_DEXT      = 0x20000000, /* Descriptor extension (0 = legacy) */
+            E1000_TXD_CMD_VLE       = 0x40000000, /* Add VLAN tag */
+            E1000_TXD_CMD_IDE       = 0x80000000, /* Enable Tidv register */
+            E1000_TXD_STAT_DD       = 0x00000001, /* Descriptor Done */
+            E1000_TXD_STAT_EC       = 0x00000002, /* Excess Collisions */
+            E1000_TXD_STAT_LC       = 0x00000004, /* Late Collisions */
+            E1000_TXD_STAT_TU       = 0x00000008, /* Transmit underrun */
+            E1000_TXD_CMD_TCP       = 0x01000000, /* TCP packet */
+            E1000_TXD_CMD_IP        = 0x02000000, /* IP packet */
+            E1000_TXD_CMD_TSE       = 0x04000000, /* TCP Seg enable */
+            E1000_TXD_STAT_TC       = 0x00000004, /* Tx Underrun */
+        }
+
+        map
+        {
+        }
+    }
+
+    template type e1000::RxDescriptor()
+    {
+        decl data_types()
+        {
+            __le64          buff_addr;
+            __le16          length;
+            __le16          csum;
+            unsigned char   status;
+            unsigned char   errors;
+            __le16          special;
+        }
+
+        map
+        {
+        }
+    }
+
+    // This is a generic tx descriptor for the e1000. When you use TCP
+    // Segmentation Offload (TSO) the hardware actually uses two types of
+    // tx descriptors in its tx ring:
+    // - context descriptors: this descriptor doesn't actually point to data to
+    //   send but initialize the offloading engine for the data descriptor that
+    //   follow;
+    // - data descriptors: this descriptor points to data from the skbuffs.
+    template type e1000::TxDescriptor()
+    {
+        decl data_types()
+        {
+            __le64                  buff_addr;
+            union {
+                __le32              data;
+                struct {
+                    __le16          length;
+                    unsigned char   csum_offset; /* CSO */
+                    unsigned char   cmd;
+                }                   fields;
+            }                       lower;
+            union {
+                __le32              data;
+                struct {
+                    unsigned char   status;
+                    unsigned char   csum_start; /* CSS */
+                    __le16          special;
+                }                   fields;
+            }                       upper;
+        }
+
+        map
+        {
+        }
+    }
+
+    template type e1000::Buffer()
+    {
+        decl data_types()
+        {
+            ${Socket::SKBuff}   sk_buff;
+            ${DMA::DMAHandle}   dma;
+        }
+
+        method init(Socket::SKBuff sk_buff, DMA::DMAHandle dma)
+        {
+            ${self.sk_buff} = ${sk_buff};
+            ${self.dma} = ${dma};
+        }
+
+        map
+        {
+            sk_buff: ${self}->sk_buff;
+            dma: ${self}->dma;
+        }
+    }
+
+    template type e1000::Context()
+    {
+        decl data_types()
+        {
+            ${Ethernet::Device.ref} net_dev;
+            // XXX should be annoted with __iomem:
+            unsigned char           *io_addr;
+            // XXX Forced to hardcode the type because there is a circular
+            // dependency between the rings and the context.
+            rtxType_e1000_TxRing    tx_ring;
+            rtxType_e1000_RxRing    rx_ring;
+        }
+
+        chunk LKM::includes()
+        {
+            #include <linux/types.h>
+        }
+
+        chunk LKM::prototypes()
+        {
+            static void rtx_e1000_print_status(${e1000::Context.ref});
+
+            // XXX Needed until we can call methods (issue #46):
+            static unsigned int rtx_e1000_reg_read32(${e1000::Context}, ${e1000::Register});
+            static void rtx_e1000_reg_write32(${e1000::Context}, ${e1000::Register}, unsigned int);
+            static void rtx_e1000_reg_set32(${e1000::Context}, ${e1000::Register}, unsigned int);
+            static void rtx_e1000_reg_unset32(${e1000::Context}, ${e1000::Register}, unsigned int);
+        }
+
+        chunk LKM::code()
+        {
+            static void rtx_e1000_print_status(${e1000::Context.ref} self)
+            {
+                unsigned int status = rtx_e1000_reg_read32(${local.self}, E1000_STATUS);
+                ${Log::info("card status:")};
+                // XXX We can't use Log::info below because it just accepts a
+                // string (as opposed to a format string with its arguments):
+                pr_info("\tRegister value: 0x%x\n", status);
+                pr_info("\tMode: %s\n", (status & 1) ? "Full": "Half");
+                pr_info("\tLink: %s\n", (status & 2) ? "Up" : "Down");
+                pr_info("\tTransmission: %s\n", (status & 4) ? "Paused" : "Ok");
+                pr_info("\tInterface: %s\n", (status & 3) == 3 ? "Up" : "Down");
+            }
+
+            static unsigned int rtx_e1000_reg_read32(${e1000::Context} self, ${e1000::Register} reg)
+            {
+                // XXX The compiler generates &self->io_addr instead of
+                // self->io_addr if I use ${local.self.io_addr}:
+                return ioread32(self->io_addr + reg);
+            }
+
+            static void rtx_e1000_reg_write32(${e1000::Context} self,
+                                              ${e1000::Register} reg,
+                                              unsigned int value)
+            {
+                return iowrite32(value, self->io_addr + reg);
+            }
+
+            static void rtx_e1000_reg_set32(${e1000::Context} self,
+                                            ${e1000::Register} reg,
+                                            unsigned int value)
+            {
+                return iowrite32(
+                    rtx_e1000_reg_read32(${local.self}, reg) | value,
+                    self->io_addr + reg
+                );
+            }
+
+            static void rtx_e1000_reg_unset32(${e1000::Context} self,
+                                              ${e1000::Register} reg,
+                                              unsigned int value)
+            {
+                return iowrite32(rtx_e1000_reg_read32(
+                    ${local.self}, reg) & ~value,
+                    self->io_addr + reg
+                );
+            }
+        }
+
+        method init(Ethernet::Device rtx_ether_ctx, Builtin::symbol io_addr)
+        {
+            ${self.net_dev} = ${rtx_ether_ctx};
+            ${self.io_addr} = ${io_addr};
+        }
+
+        method reg_read32(e1000::Register reg)
+        {
+            ioread32(${self.io_addr} + ${local.reg});
+        }
+
+        method reg_write32(e1000::Register reg, Builtin::number value)
+        {
+            iowrite32(${value}, ${self.io_addr} + ${reg});
+        }
+
+        method reg_set32(e1000::Register reg, Builtin::number value)
+        {
+            iowrite32(ioread32(${self.io_addr} + ${reg}) | ${value}, ${self.io_addr} + ${reg});
+        }
+
+        method reg_unset32(e1000::Register reg, Builtin::number value)
+        {
+            iowrite32(ioread32(${self.io_addr} + ${reg}) & ~${value}, ${self.io_addr} + ${reg});
+        }
+
+        chunk Ethernet::HardwareContext()
+        {
+            ${e1000::Context} hw_ctx;
+        }
+
+        chunk Ethernet::adapter_init_context(Ethernet::Device rtx_ether_ctx, Builtin::symbol io_addr)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+                // XXX doesn't work: ${local.hw_ctx.init(rtx_ether_ctx, io_addr)};
+                ${local.hw_ctx.net_dev} = ${rtx_ether_ctx};
+                ${local.hw_ctx.io_addr} = ${io_addr};
+                // XXX doesn't work: ${local.hw_ctx.rx_ring.init(local.hw_ctx, config.rx_ring_size)};
+                rtx_e1000_ring_init(
+                    &${local.hw_ctx.rx_ring},
+                    ${config.rx_ring_size},
+                    sizeof(rtxType_e1000_RxDescriptor)
+                );
+                // XXX doesn't work: ${local.hw_ctx.tx_ring.init(local.hw_ctx, config.tx_ring_size)};
+                rtx_e1000_ring_init(
+                    &${local.hw_ctx.tx_ring},
+                    ${config.tx_ring_size},
+                    sizeof(rtxType_e1000_TxDescriptor)
+                );
+            }
+        }
+
+        chunk Ethernet::adapter_reset(Ethernet::Device rtx_ether_ctx)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+                // XXX #46: ${local.hw_ctx.io.write32(E1000_CTRL, E1000_CMD_RST)};
+                rtx_e1000_reg_write32(hw_ctx, E1000_CTRL, E1000_CMD_RST);
+                udelay(10); // TODO: abstract udelay too...
+                ${Log::info("adapter has been reset")};
+            }
+        }
+
+        chunk Ethernet::adapter_load_mac_address(Ethernet::Device rtx_ether_ctx)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+                // Shamelessly borrowed from Minix
+                for (int i = 0; i < 3; ++i) {
+                    rtx_e1000_reg_write32(hw_ctx, E1000_EEPROM_READ, (i << 8) | 1);
+                    int value;
+                    do {
+                        value = rtx_e1000_reg_read32(hw_ctx, E1000_EEPROM_READ);
+                    } while ((value & (1 << 4)) == 0);
+                    value >>= 16;
+                    // NOTE: I'm not sure if Ethernet::Device should be
+                    // accessed directly here. But since we need to take it in
+                    // parameter (so we can get back our e1000::Context) it
+                    // seems inadequate to set this in another way:
+                    ${rtx_ether_ctx.dev_addr}[i * 2] = value & 0xff;
+                    ${rtx_ether_ctx.dev_addr}[i * 2 + 1] = (value >> 8) & 0xff;
+                }
+
+                ${Log::info("mac address loaded from the EEPROM")};
+            }
+        }
+
+        // For e1000, this part is documented in the Intel Gigabit Ethernet
+        // Controller Software Developper manual. (You can find it in the
+        // doc/hardware directory).
+        chunk Ethernet::adapter_setup_rx_tx(Ethernet::Device rtx_ether_ctx)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+
+                // "General Configuration" (section 14.3):
+                //
+                // - CTRL.ASDE/CTRL.SLU: Let the PHY handle the speed detection &
+                //   negociation;
+                // - CTRL.LRST/FRCSPD: Unset them to initiate the auto-negociation;
+                // - CTRL.PHY_RST: Unset it;
+                // - CTRL.ILOS: Unset it (ILOS is Invert Loss Of Signal);
+                // - CTRL.VME: Make sure it's not set to disable VLAN support;
+                // - Set the control flow registers to 0;
+                // - Finally, initialize all the statistic registers from
+                //   E1000_CRCERRS to E1000_TSCTFC.
+
+                // XXX #46: Use the read/write/set/unset methods on Context
+                rtx_e1000_reg_set32(hw_ctx, E1000_CTRL, E1000_CMD_ASDE|E1000_CMD_SLU);
+                rtx_e1000_reg_unset32(
+                    hw_ctx,
+                    E1000_CTRL,
+                    E1000_CMD_LRST|E1000_CMD_FRCSPD|E1000_CMD_PHY_RST|
+                    E1000_CMD_ILOS|E1000_CMD_VME
+                );
+                rtx_e1000_reg_write32(hw_ctx, E1000_FCAH, 0);
+                rtx_e1000_reg_write32(hw_ctx, E1000_FCAL, 0);
+                rtx_e1000_reg_write32(hw_ctx, E1000_FCT, 0);
+                rtx_e1000_reg_write32(hw_ctx, E1000_FCTTV, 0);
+                // XXX int i leaks from another chunk and will not be generated
+                // here, let's use a different index name:
+                for (int j = 0; j != 64; ++j)
+                    rtx_e1000_reg_write32(hw_ctx, E1000_CRCERRS + j * 4, 0);
+
+                ${Log::info("adapter_setup_rx_tx: general configuration done")};
+
+                int err;
+
+                err = rtx_e1000_rx_ring_alloc_resources(&hw_ctx->rx_ring);
+                if (err)
+                    goto err_alloc_rx_ring;
+                rtx_e1000_rx_ring_configure(&hw_ctx->rx_ring);
+
+                err = rtx_e1000_tx_ring_alloc_resources(&hw_ctx->tx_ring);
+                if (err)
+                    goto err_alloc_tx_ring;
+                rtx_e1000_tx_ring_configure(&hw_ctx->tx_ring);
+
+                err_alloc_tx_ring:
+                    rtx_e1000_rx_ring_free_resources(&hw_ctx->rx_ring);
+                err_alloc_rx_ring:
+                    // XXX Can't return here since we don't know the context,
+                    // anyway, hardcoded goto:
+                    goto rtx_ethernet_open_fail;
+            }
+        }
+
+        chunk Ethernet::adapter_enable_interrupts(Ethernet::Device rtx_ether_ctx)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+                rtx_e1000_reg_write32(
+                    ${local.hw_ctx},
+                    E1000_IMS,
+                    E1000_INTR_TXDW|E1000_INTR_TXQE|E1000_INTR_LSC|
+                    E1000_INTR_RXO|E1000_INTR_RXT0
+                );
+
+                // XXX We should probably move that elsewhere (it just used to
+                // be done right after we enabled interrupts when this was
+                // still in lkm.rtx):
+                // XXX #46: ${local.hw_ctx.print_status()};
+                rtx_e1000_print_status(${local.hw_ctx});
+            }
+        }
+
+        chunk Ethernet::adapter_disable_interrupts(Ethernet::Device rtx_ether_ctx)
+        {
+            { ${Log::info("adapter_disable_interrupts: TBD...")}; }
+        }
+
+        chunk Ethernet::adapter_handle_interrupt(Ethernet::Device rtx_ether_ctx)
+        {
+            {
+                ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+                unsigned int icr = rtx_e1000_reg_read32(hw_ctx, E1000_ICR);
+                pr_info("%s: interrupt received, ICR: 0x%x", ${config.name}, icr);
+                if (icr) {
+                    if (icr & E1000_INTR_LSC) {
+                        ${Log::info("handle_interrupt: cable link status changed, dumping card status:")};
+                        // XXX #46: ${local.hw_ctx.print_status()};
+                        rtx_e1000_print_status(hw_ctx);
+                    }
+                    if (icr & (E1000_INTR_TXQE|E1000_INTR_TXDW)) {
+                        ${Log::info("handle_interrupt: TxRing: packet(s) sent")};
+                    }
+                    if (icr & E1000_INTR_RXT0) {
+                        ${Log::info("handle_interrupt: RxRing: packet(s) received")};
+                    }
+                    if (icr & E1000_INTR_RXO) {
+                        ${Log::info("handle_interrupt: RxRing: overrun")};
+                    }
+
+                    // XXX: This sucks since we don't know the pointcut context:
+                    return IRQ_HANDLED;
+                }
+            }
+        }
+
+        chunk Ethernet::adapter_xmit(Ethernet::Device rtx_ether_ctx, Socket::SKBuff rtx_skb)
+        {
+            { ${Log::info("adapter_xmit: TBD...")}; }
+        }
+
+        chunk Ethernet::adapter_disable_rx(Ethernet::Device rtx_ether_ctx)
+        {
+            { ${Log::info("adapter_disable_rx: TBD..")}; }
+        }
+
+        chunk Ethernet::adapter_disable_tx(Ethernet::Device rtx_ether_ctx)
+        {
+            { ${Log::info("adapter_disable_tx: TBD..")}; }
+        }
+
+        chunk Ethernet::adapter_free_rx_tx(Ethernet::Device rtx_ether_ctx)
+        {
+            ${e1000::Context.ref} hw_ctx = &${rtx_ether_ctx}->hw_ctx;
+
+            { ${Log::info("adapter_free_rx_tx: TBD..")}; }
+
+            rtx_e1000_rx_ring_free_resources(${local.hw_ctx.rx_ring});
+            rtx_e1000_tx_ring_free_ressources(${local.hw_ctx.tx_ring});
+        }
+
+        method print_status()
+        {
+            rtx_e1000_print_status(${self});
+        }
+
+        map
+        {
+            io_addr: ${self}->io_addr;
+            rx_ring: ${self}->rx_ring;
+            tx_ring: ${self}->tx_ring;
+            net_dev: ${self}->net_dev;
+        }
+    }
+
+    template type e1000::Ring()
+    {
+        decl data_types()
+        {
+            ${e1000::Context.ref}   hw_ctx;
+            ${DMA::DMAHandle}       dma;
+            unsigned int            size;
+            void                    *descs;
+            ${e1000::Buffer.ref}    buffs;
+        }
+
+        chunk LKM::prototypes()
+        {
+            static void rtx_e1000_ring_init(${e1000::Ring.ref}, ${e1000::Context}, int, int);
+        }
+
+        chunk LKM::code()
+        {
+            static void rtx_e1000_ring_init(${e1000::Ring.ref} self, ${e1000::Context.ref} hw_ctx,
+                                            int desc_count, int desc_size)
+            {
+                BUG_ON(desc_count <= 0 || desc_size <= 0);
+                memset(self, 0, sizeof(*self));
+                self->size = ALIGN(desc_count * desc_size, 4096);
+                self->hw_ctx = hw_ctx;
+            }
+        }
+
+        method init(e1000::Context hw_ctx, Builtin::number desc_count, Builtin::number desc_size)
+        {
+            rtx_e1000_ring_init(&${self}, ${hw_ctx}, ${desc_count}, ${desc_size});
+        }
+
+        map
+        {
+            hw_ctx: ${self}->hw_ctx;
+            dma: ${self}->dma;
+            size: ${self}->size;
+            descs: ${self}->descs;
+            buffs: ${self}->buffs;
+        }
+    }
+
+    template type e1000::RxRing()
+    {
+        decl data_types()
+        {
+            ${e1000::Ring}  ring;
+        }
+
+        chunk LKM::prototypes()
+        {
+            static int rtx_e1000_rx_ring_alloc_resources(${e1000::RxRing.ref});
+            static void rtx_e1000_rx_ring_free_resources(${e1000::RxRing.ref});
+            static void rtx_e1000_rx_ring_configure(${e1000::RxRing.ref});
+        }
+
+        chunk LKM::code()
+        {
+            static int rtx_e1000_rx_ring_alloc_resources(${e1000::RxRing.ref} self)
+            {
+                // 4. Setup the receive descriptor ring
+
+                int i;
+
+                // Allocate the descriptors
+                ${local.self.descs} = ${DMA::alloc_coherent(
+                    local.self.hw_ctx.net_dev.device, local.self.size,
+                    local.self.dma.dma_handle
+                )};
+
+                if (!${local.self.descs}) {
+                    ${Log::info("adapter_init_rx: cannot allocate the descriptors for the rx ring")};
+                    goto err_rx_ring_alloc;
+                }
+
+                // XXX The generated code is totally wrong if this is not scoped:
+                { ${Log::info("adapter_init_rx: rx descriptors allocated")}; }
+
+                // Allocate the skbuffs, map them for DMA, and write their address
+                // in the corresponding descriptor.
+                for (i = 0; i != ${config.rx_ring_size}; ++i) {
+                    // XXX No support for arrays:
+                    ${e1000::Buffer.ref} buff = &${local.self.buffs}[i];
+                    // XXX #46: ${rtx_ether_ctx.alloc_rx_skbuff(local.buff.skbuff, config.rx_buffer_len)};
+                    if (rtx_ethernet_alloc_rx_skbuff(&${local.buff.sk_buff}, ${config.rx_buffer_len})) {
+                        ${Log::info("adapter_init_rx: cannot allocate a skbuff for the rx ring")};
+                        goto err_skbuffs_alloc;
+                    }
+                    // XXX I couldn't manage to get this call working:
+                    //${local.buff.dma.dma_handle} = ${DMA::map(
+                    //    local.self.hw_ctx.net_dev.device, local.buff.sk_buff.data,
+                    //    config.rx_buffer_len, RTX_DMA_FROM_DEVICE
+                    //)};
+                    ${local.buff.dma.dma_handle.k_dma_handle} = dma_map_single(
+                        ${local.self.hw_ctx.net_dev.device.k_device}, ${local.buff.sk_buff.data},
+                        ${config.rx_buffer_len}, RTX_DMA_FROM_DEVICE
+                    );
+                    int err = ${DMA::mapping_error(
+                        local.self.hw_ctx.net_dev.device, local.buff.dma.dma_handle
+                    )};
+                    if (err) {
+                        ${Log::info("adapter_init_rx: cannot dma-map a skbuff for the rx ring")};
+                        goto err_skbuffs_map;
+                    }
+                    ${local.self.descs}[i].buff_addr = cpu_to_le64(${local.buff.dma.dma_handle.k_dma_handle});
+                }
+
+                { ${Log::info("adapter_init_rx: skbuffs allocated")}; }
+
+                return 0;
+
+            err_skbuffs_alloc:
+                while (i--) {
+                    ${e1000::Buffer.ref} buff = &${local.self.buffs}[i];
+                    // XXX I couldn't manage to get this call working
+                    //${DMA::unmap(
+                    //    local.self.hw_ctx.net_dev.device,
+                    //    local.buff.dma.dma_handle,
+                    //    config.rx_buffer_len,
+                    //    RTX_DMA_FROM_DEVICE
+                    //)};
+                    dma_unmap_single(
+                        ${local.self.hw_ctx.net_dev.device.k_device},
+                        ${local.buff.dma.dma_handle.k_dma_handle},
+                        ${config.rx_buffer_len},
+                        RTX_DMA_FROM_DEVICE
+                    );
+            err_skbuffs_map:
+                    // XXX #46: ${local.buff.sk_buff.free()};
+                    dev_kfree_skb(${local.buff.sk_buff.sk_buff.k_sk_buff});
+                }
+
+                void *descs = ${local.self.descs};
+                ${cast local.descs as Builtin::symbol.ref};
+                ${DMA::free_coherent(
+                    local.self.hw_ctx.net_dev.device, local.self.size,
+                    local.descs, local.self.dma.dma_handle
+                )};
+            err_rx_ring_alloc:
+                return -ENOMEM;
+            }
+
+            static void rtx_e1000_rx_ring_free_resources(${e1000::RxRing.ref} self)
+            {
+                ${Log::info("e1000_rx_ring_free_resources: TBD...")};
+            }
+
+            static void rtx_e1000_rx_ring_configure(${e1000::RxRing.ref} self)
+            {
+                // Receive initialization (section 14.4):
+                //
+                // 1. Program the receive address, in RAL/RAH;
+                // 2. Initialize the Multicast Table Array;
+                // 3. Program the interrupt mask register (done in
+                //    e1000::activate_device_interruption);
+                // 4. Allocate the receive descriptor ring and map it to make it
+                //    accessible by the device;
+                // 5. Write the start address of the ring in RDBAL/RDBAH and set
+                //    RDLEN (Receive Descriptor Length) to the size of the ring;
+                // 6. Set the RDH/RDT (Receive Descriptor Head/Tail) indexes to the
+                //    beginning and end of the ring;
+                // 7. Make sure that RCTL.BSIZE and .BSEX are at 0 to configure the
+                //    receive buffer size to 2048 bytes (e1000::rx_buffer_len).
+                // 8. Set RCTL.EN to enable the receiver.
+                //
+                // The ugly casts here are caused by the lack of CNorm unstrict.
+
+                int i;
+
+                // 1. Program the receive address
+
+                // (We should use uint{32,16}_t but CNorm doesn't know them yet)
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RAL,
+                    *(unsigned int *)(${local.self.hw_ctx.net_dev.dev_addr})
+                );
+                // The 16 upper bits of RAH also store the AS bits (which should be
+                // 0) and the AV bit (should be 1 to set the address as valid).
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RAH,
+                    *(unsigned short *)(&${local.self.hw_ctx.net_dev.dev_addr}[4])
+                );
+                rtx_e1000_reg_set32(${local.self.hw_ctx}, E1000_RAH, E1000_RAH_AV);
+
+                ${Log::info("rx_ring_configure: receive address programmed")};
+
+                // 2. Initialize the MTA
+
+                for (i = 0; i != 128; ++i) // TODO Remove that hardcoded 128
+                    rtx_e1000_reg_write32(${local.self.hw_ctx}, E1000_MTA + i * 4, 0);
+
+                ${Log::info("rx_ring_configure: MTA init done")};
+
+                // 5. Save the emplacement and the size of the ring in RDBA/RDLEN
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RDBAL,
+                    ${local.self.dma.dma_handle.k_dma_handle} & 0xffffffff
+                );
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RDBAH,
+                    ${local.self.dma.dma_handle.k_dma_handle} >> 32
+                );
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RDLEN,
+                    ${local.self.size}
+                );
+
+                // 6. Setup RDH/RDT
+                rtx_e1000_reg_write32(${local.self.hw_ctx}, E1000_RDH, 0);
+                rtx_e1000_reg_write32(
+                    ${local.self.hw_ctx}, E1000_RDT,
+                    ${config.rx_ring_size} - 1
+                );
+
+                // 7. Configure the buffer size
+                rtx_e1000_reg_set32(
+                    ${local.self.hw_ctx}, E1000_RCTL,
+                    E1000_RCTL_BSIZE_${config.rx_buffer_len}
+                );
+
+                // 8. Enable the receiver
+                rtx_e1000_reg_set32(${local.self.hw_ctx}, E1000_RCTL, E1000_RCTL_EN);
+
+                ${Log::info("rx_ring_configure: receive registers configured and receiver enabled")};
+
+                return 0;
+            }
+        }
+
+        method init(e1000::Context hw_ctx, Builtin::number desc_count)
+        {
+            // XXX doesn't work: ${self.ring.init(hw_ctx, desc_count, self.desc_size)};
+            rtx_e1000_ring_init(&${self}, ${hw_ctx}, ${desc_count}, ${self.desc_size});
+        }
+
+        method alloc()
+        {
+            rtx_e1000_rx_ring_alloc_resources(${self});
+        }
+
+        method free()
+        {
+            rtx_e1000_rx_ring_free_resources(${self});
+        }
+
+        method configure()
+        {
+            rtx_e1000_rx_ring_configure(${self});
+        }
+
+        map
+        {
+            hw_ctx: ${self}->ring.hw_ctx;
+            dma: ${self}->ring.dma;
+            size: ${self}->ring.size;
+            descs: ${self}->ring.descs;
+            buffs: ${self}->ring.buffs;
+            desc_size: sizeof(rtxType_e1000_RxDescriptor); // XXX hardcoded
+        }
+    }
+
+    template type e1000::TxRing()
+    {
+        decl data_types()
+        {
+            ${e1000::Ring}  ring;
+        }
+
+        chunk LKM::prototypes()
+        {
+            static int rtx_e1000_tx_ring_alloc_resources(${e1000::TxRing.ref});
+            static void rtx_e1000_tx_ring_free_resources(${e1000::TxRing.ref});
+            static void rtx_e1000_tx_ring_configure(${e1000::TxRing.ref});
+        }
+
+        chunk LKM::code()
+        {
+            static int rtx_e1000_tx_ring_alloc_resources(${e1000:::TxRing.ref} self)
+            {
+                ${Log::info("e1000_tx_ring_alloc_resources: TBD...")};
+                return 0;
+            }
+
+            static void rtx_e1000_tx_ring_free_resources(${e1000::TxRing.ref} self)
+            {
+                ${Log::info("e1000_tx_ring_free_resources: TBD...")};
+            }
+
+            static void rtx_e1000_tx_ring_configure(${e1000::TxRing.ref} self)
+            {
+                ${Log::info("e1000_tx_ring_configure: TBD...")};
+            }
+        }
+
+        method init(e1000::Context hw_ctx, Builtin::number desc_count)
+        {
+            // XXX doesn't work: ${self.ring.init(hw_ctx, desc_count, self.desc_size)};
+            rtx_e1000_ring_init(&${self}, ${hw_ctx}, ${desc_count}, ${self.desc_size});
+        }
+
+        method alloc()
+        {
+            rtx_e1000_tx_ring_alloc_resources(${self});
+        }
+
+        method free()
+        {
+            rtx_e1000_tx_ring_free_resources(${self});
+        }
+
+        method configure()
+        {
+            rtx_e1000_tx_ring_configure(${self});
+        }
+
+        map
+        {
+            hw_ctx: ${self}->ring.hw_ctx;
+            dma: ${self}->ring.dma;
+            size: ${self}->ring.size;
+            descs: ${self}->ring.descs;
+            buffs: ${self}->ring.buffs;
+            desc_size: sizeof(rtxType_e1000_TxDescriptor); // XXX hardcoded
+        }
+    }
+}

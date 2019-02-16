@@ -1,0 +1,130 @@
+#if !existFunction(rtxTypingLookup)
+
+function rtxTypingLookup_version()
+{ return "1.0"; }
+
+declare function rtxTypingLookup_TypeField<ContainerTypeString>(theRtype : node, theField : value, theChunk : node, source_tree : node,  fieldRtype : reference);
+declare function rtxTypingLookup_ResolveTypeFields(baseRtype : node, theFields : node, theChunk : node, source_tree : node, out_field_type : reference);
+
+
+declare function rtxTypingLookup_TypeField<ContainerType>(theRtype : node, theField : value, theChunk : node, source_tree : node,  fieldRtype : reference);
+
+/*
+ * This functions allows retrieving the rtype of a rathaxes type's field.
+ */
+function rtxTypingLookup_TypeField<ContainerTypeString>(theRtype : node, theField : value, theChunk : node, source_tree : node,  fieldRtype : reference)
+{
+    local itfName = theRtype.name.scope;
+    local itfNode;
+    local itfTree;
+    local theType;
+
+    // first, check that no builtin reached here. If one did, it means that it has no
+    // fields: Return an error immediately
+    if (itfName == "Builtin")
+        error(RED + "[Error] Builtin type '"+theRtype.name.name+"' does not have any field." + DEFAULT_COLOR);
+    
+    // Then, if the type isn't fully qualified, return an error
+    if (itfName == "" && theRtype.name.global != true)
+        error(RED + "[Error] Trying to retrieve field type for an unqualified type: "
+              + rtxRTypeName<theRtype.type>(theRtype) + DEFAULT_COLOR);
+
+    // Now for the true type resolution:
+    // load the interface containing the type to retrieve a field's type from
+    if (rtxLink_findInterface(itfName, itfNode) == false)
+    {
+        traceLine(RED + "[Error] Interface '" + itfName
+                  + "' containing the type template"
+                  + rtxRTypeName<theRtype.type>(theRtype)
+                  + " could not be found within the cache." + DEFAULT_COLOR);
+        return false;
+    }
+    if (rtxLink_LoadItem(itfNode, itfTree, false) == false)
+    {
+        traceLine(RED + "[Error] Could not load interface's '"
+                  + itfName + "' tree." + DEFAULT_COLOR);
+        return false;
+    }
+
+    // Get the type
+    if (findElement(theRtype.name.name, itfTree.types) != true)
+    {
+        traceLine(RED + "[Error] Could not find type " 
+                  + rtxRTypeName<theRtype.type>(theRtype)
+                  + " within the interface's tree." + DEFAULT_COLOR);
+        return false;
+    }
+    ref theType = itfTree.types[theRtype.name.name];
+
+    // Get the attribute
+    if (!findElement(theField, theType.attributes))
+    {
+        traceLine(RED + "[Error] Could not find attribute " + theField 
+                  + " in description of type " + rtxRTypeName<theRtype.type>(theRtype)
+                  + DEFAULT_COLOR);
+        return false;
+    }
+
+    // Finally, setup the type and return success.
+    setall fieldRtype = theType.attributes[theField];
+
+    return true;
+}
+
+function rtxTypingLookup_TypeField<"Builtin::local">(theRtype : node, theField : value, theChunk : node, source_tree : node,  fieldRtype : reference)
+{
+    if (!findElement(theField, theChunk.variables))
+        return false;
+
+    if (theChunk.variables[theField].type == "ctype")
+    {
+        traceLine(YELLOW + "[Warning] The local variable " + theField
+                  + " has no associated rtxtype. Using Builtin::symbol by default."+ DEFAULT_COLOR);
+        local dummy;
+        local id;
+        rtxNodeIdentifier(id, "symbol", "Builtin");
+        rtxNodeRType(fieldRtype, id, dummy);
+    }
+    else
+        setall fieldRtype = theChunk.variables[theField].type_node;
+
+    return true;
+}
+
+function rtxTypingLookup_TypeField<"Builtin::config">(theRtype : node, theField : value, theChunk : node, source_tree : node,  fieldRtype : reference)
+{
+    return false;
+}
+
+
+/*
+ * Here, the variable 'theFields' must be a list of identifiers containing only the fields
+ * which types are to be resolved on the basis of the baseRtype.
+ *
+ * The name of the variable must not be included.
+ */
+function rtxTypingLookup_ResolveTypeFields(baseRtype : node, theFields : node, theChunk : node, source_tree : node, out_field_type : reference)
+{
+    local containerRtype;
+    local fieldRtype;
+
+    setall containerRtype = baseRtype;
+    foreach field in theFields
+    {
+        local type_name = rtxRTypeName<containerRtype.type>(containerRtype);
+        if (rtxTypingLookup_TypeField<type_name>(containerRtype, field, theChunk, source_tree, out_field_type) == false)
+        {
+            traceLine(RED + "[Error] Could not find type of field '"
+                      + field.name + "' inside type " + type_name + DEFAULT_COLOR);
+            return false;
+        }
+        setall containerRtype = out_field_type;
+    }
+
+    ref out_field_type = fieldRtype;
+
+    return true;
+}
+
+
+#end

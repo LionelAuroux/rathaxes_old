@@ -1,0 +1,10 @@
+interface Device : LKM
+{
+    provided type   AbstractDevice
+    {
+        decl        data_types();
+        chunk       LKM::includes();
+        method      init();
+        attribute   Builtin::symbol.scalar k_device;
+    }
+}
